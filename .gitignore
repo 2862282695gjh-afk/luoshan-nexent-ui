@@ -9,4 +9,5 @@ coverage/
 logs/
 *.log
 server.pid
+k8s/*.tar.gz
 .DS_Store

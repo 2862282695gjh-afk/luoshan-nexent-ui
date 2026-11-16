@@ -52,6 +52,8 @@ npm start
 
 从 Git 克隆到服务器后的完整步骤、Nginx 与 systemd 示例、门户小窗地址、升级和排错见[部署说明](部署说明.md)。
 
+需要部署到现有 Nexent Kubernetes 集群时，使用不含真实凭据的[K8s 部署模板](k8s/README.md)；北向密钥在部署时写入 Kubernetes Secret，不保存在 Git、镜像或 ConfigMap。
+
 这是单用户/单租户接入样例，同一应用实例共用服务端 API Key。若接入多用户园区门户，应由门户 BFF 按登录身份映射凭据；把实例开放到内网前，应在入口接入门户身份验证。HTTPS 反向代理须关闭 SSE 缓冲和缓存，设置合适的读取超时；保留原始 Host，使同源检查正常工作。
 
 ## 门户悬浮对话窗
