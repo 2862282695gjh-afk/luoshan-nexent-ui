@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ADR 0001 · 独立北向对话页面</title>
+  <style>
+    body {
+      max-width: 850px;
+      margin: 60px auto;
+      padding: 0 25px;
+      font: 16px/1.9 sans-serif;
+      color: #dce6ed;
+      background: #152331;
+    }
+    h1 {
+      font-size: 29px;
+    }
+    h2 {
+      font-size: 20px;
+      color: #7dc6ef;
+      margin-top: 35px;
+    }
+    a {
+      color: #7dc6ef;
+    }
+    small {
+      color: #90a5b8;
+    }
+  </style>
+  <small>ADR 0001 · Status: Accepted · Date: 2026-09-08</small>
+  <h1>独立 Vue 前端与同源北向代理</h1>
+  <h2>Context</h2>
+  <p>
+    用户提供 UI 图片和接口文档，需要可调用北向接口的页面，尚未指定集成仓库。原 Nexent
+    工作区有未提交的其他改动。
+  </p>
+  <h2>Decision</h2>
+  <p>
+    在独立目录创建 Vue 3 + TypeScript 页面，使用共享 Node HTTP 代理连接北向服务。API Key
+    只从服务端环境读取。演示与真实模式分离并标识。
+  </p>
+  <h2>考虑过的选项与取舍</h2>
+  <p>
+    直接在 Nexent
+    前端集成可复用现有组件，但耦合原项目发布和构建，也无法确定用户要求的集成位置。浏览器直接调用配置更少，但暴露租户
+    API Key 且依赖 CORS。独立工程便于本地查看和单独部署，同源代理增加小型运行进程，但解决凭据分发与
+    SSE 代理问题。
+  </p>
+  <h2>Consequences</h2>
+  <p>
+    页面不修改原 Nexent 服务。静态资源必须与代理一起运行。当前每个应用实例对应一个 API
+    用户；接入多用户门户需要复用门户认证和用户凭据映射。页面不添加文档没有的删除接口。没有可联调服务前，仅能完成模拟契约与本地代理验证。
+  </p>
+  <h2>Related</h2>
+  <p>
+    <a href="../designs/northbound-chat.md">北向对话设计</a>
+    ·
+    <a href="../../README.md">启动与接入说明</a>
+  </p>
+</html>

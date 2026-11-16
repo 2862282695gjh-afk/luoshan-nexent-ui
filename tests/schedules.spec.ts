@@ -1,0 +1,102 @@
+import { test, expect } from '@playwright/test'
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/config', (route) =>
+    route.fulfill({ json: { configured: false, agentName: '' } }),
+  )
+})
+test('create, persist, edit, pause and delete a demo task without calling a task backend', async ({
+  page,
+}) => {
+  const requests: string[] = []
+  page.on('request', (r) => {
+    if (r.url().includes('/nb/') || r.url().includes('/api/automations')) requests.push(r.url())
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: '定时任务', exact: true }).first().click()
+  await page.getByRole('button', { name: '本地演示', exact: true }).click()
+  const manager = page.getByRole('dialog', { name: '定时任务', exact: true })
+  await expect(manager).toContainText('不会实际执行或发送通知')
+  await page.getByRole('button', { name: '创建定时任务', exact: true }).click()
+  await page.getByLabel('任务名称').fill('周度设备巡检')
+  await page
+    .getByLabel('任务内容', { exact: true })
+    .fill('检查园区设备状态，汇总告警和待处理问题。')
+  await page.getByRole('radio', { name: '每周', exact: true }).check()
+  await page.getByRole('checkbox', { name: '周五', exact: true }).check()
+  await page.getByLabel('执行时间', { exact: true }).fill('09:30')
+  await expect(page.getByRole('complementary', { name: '任务计划预览' })).toContainText(
+    '周一、周五 09:30',
+  )
+  await page.screenshot({ path: 'test-results/tasks-create-desktop.png' })
+  await page.getByRole('button', { name: '生成演示提案' }).click()
+  await expect(page.locator('.demo-proposal')).toContainText('尚未生效')
+  await page.getByRole('button', { name: '确认演示提案' }).click()
+  await expect(page.locator('.task-card')).toHaveCount(1)
+  await expect(page.locator('.task-card')).toContainText('已启用 · 演示')
+  await page.reload()
+  await page.getByRole('button', { name: '定时任务', exact: true }).first().click()
+  await page.getByRole('button', { name: '本地演示', exact: true }).click()
+  await expect(page.locator('.task-card')).toContainText('周度设备巡检')
+  await page.getByRole('button', { name: '暂停 周度设备巡检', exact: true }).click()
+  await expect(page.locator('.task-card')).toContainText('已暂停，无后续计划')
+  await page.getByRole('button', { name: '编辑 周度设备巡检', exact: true }).click()
+  await page.getByLabel('任务名称').fill('每周运维汇总')
+  await page.getByRole('button', { name: '保存修改' }).click()
+  await expect(page.locator('.task-card')).toContainText('已暂停')
+  await page.getByRole('button', { name: '启用 每周运维汇总', exact: true }).click()
+  await expect(page.locator('.task-card')).toContainText('已启用 · 演示')
+  await page.screenshot({ path: 'test-results/tasks-list-desktop.png' })
+  await page.getByRole('button', { name: '删除 每周运维汇总', exact: true }).click()
+  await page.getByRole('button', { name: '确认删除' }).click()
+  await expect(page.locator('.task-card')).toHaveCount(0)
+  await page.reload()
+  await page.getByRole('button', { name: '定时任务', exact: true }).first().click()
+  await page.getByRole('button', { name: '本地演示', exact: true }).click()
+  await expect(page.locator('.task-card')).toHaveCount(0)
+  expect(requests).toEqual([])
+})
+test('mobile drawer opens the task form and carries the chat draft', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('textbox', { name: '向AI提问' }).fill('每周汇总园区工单')
+  await page.getByRole('button', { name: '打开历史对话' }).click()
+  await page.getByRole('button', { name: '定时任务', exact: true }).click()
+  await page.getByRole('button', { name: '本地演示', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: '历史对话', exact: true })).not.toBeVisible()
+  await page.getByRole('button', { name: '创建定时任务', exact: true }).click()
+  await expect(page.getByLabel('任务内容', { exact: true })).toHaveValue('每周汇总园区工单')
+  await page.getByLabel('任务名称').fill('工单汇总')
+  await page.getByRole('radio', { name: '仅一次', exact: true }).check()
+  await page.getByLabel('执行日期', { exact: true }).fill('2099-12-31')
+  await page.getByLabel('执行时间', { exact: true }).fill('18:00')
+  await page.screenshot({ path: 'test-results/tasks-create-mobile.png' })
+  expect(
+    await page.locator('.tasks-dialog').evaluate((el) => el.scrollWidth <= el.clientWidth),
+  ).toBe(true)
+  await page.getByRole('button', { name: '生成演示提案' }).click()
+  await expect(page.locator('.demo-proposal')).toContainText('尚未生效')
+  await page.getByRole('button', { name: '确认演示提案' }).click()
+  await expect(page.locator('.task-card')).toContainText('2099-12-31 18:00')
+  await page.screenshot({ path: 'test-results/tasks-list-mobile.png' })
+  await page.getByRole('button', { name: '关闭定时任务' }).click()
+  await expect(page.getByRole('textbox', { name: '向AI提问' })).toHaveValue('每周汇总园区工单')
+})
+test('storage write failures keep the form and do not report success', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '定时任务', exact: true }).first().click()
+  await page.getByRole('button', { name: '本地演示', exact: true }).click()
+  await page.getByRole('button', { name: '创建定时任务', exact: true }).click()
+  await page.getByLabel('任务名称').fill('不能保存的任务')
+  await page.getByLabel('任务内容', { exact: true }).fill('检查设备')
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError')
+    }
+  })
+  await page.getByRole('button', { name: '生成演示提案' }).click()
+  await expect(page.locator('.demo-proposal')).toContainText('尚未生效')
+  await page.getByRole('button', { name: '确认演示提案' }).click()
+  await expect(page.getByRole('alert')).toContainText('任务尚未保存')
+  await expect(page.locator('.demo-proposal')).toContainText('不能保存的任务')
+  await expect(page.locator('.tasks-list .task-card')).toHaveCount(0)
+})

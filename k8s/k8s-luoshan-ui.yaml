@@ -1,0 +1,81 @@
+# 罗山科技园 AI 助手前端 (luoshan-nexent-ui) K8s 部署清单
+# 镜像需先在目标节点导入: ctr -n k8s.io images import luoshan-nexent-ui.tar
+# 命名空间与 nexent 保持一致(默认 nexent, 不同则全局替换)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: luoshan-ui-config
+  namespace: nexent
+data:
+  HOST: "0.0.0.0"
+  PORT: "5180"
+  # 北向服务根地址(不加 /nb/v1)。NodePort 已确认可用; 也可改为集群内服务名 http://<northbound-svc>:5013
+  NEXENT_BASE_URL: "http://10.20.6.120:30013"
+  # 部署脚本会把这个 key 写进 nexent 库 user_token_info_t; 换 key 时两处同步改
+  NEXENT_API_KEY: ""            # 部署脚本第 4 步按传入 access_key 回填
+  NEXENT_AGENT_NAME: "general_assistant"
+  # ---- 定时任务/删除会话用主 API(可选, 留空=前端只用本地演示) ----
+  # 主 API 网关根地址, 走 JWT 模式需填 NEXENT_USER_TOKEN; 集群若 IS_SPEED_MODE=True 可把下面 AUTH_MODE 改 speed 并留空 TOKEN
+  NEXENT_MAIN_API_URL: ""
+  NEXENT_USER_TOKEN: ""
+  NEXENT_AUTOMATION_AUTH_MODE: "jwt"
+  NEXENT_AUTOMATION_AGENT_ID: ""
+  # 配置服务根地址(智能体下拉列表用), 不填则默认用主 API 地址
+  NEXENT_AGENT_API_URL: ""
+  # ---- 门户悬浮窗嵌入(/embed/) ----
+  # 允许 iframe 嵌入 /embed/ 的外部门户源, 空格/逗号分隔; 留空=仅本站可嵌入(同源 /portal-demo/ 演示不受影响)
+  # 例: "https://portal.example.com https://portal-test.example.com"; 改后 kubectl rollout restart deployment/luoshan-ui -n nexent
+  EMBED_ALLOWED_ORIGINS: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: luoshan-ui
+  namespace: nexent
+  labels:
+    app: luoshan-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: luoshan-ui
+  template:
+    metadata:
+      labels:
+        app: luoshan-ui
+    spec:
+      containers:
+        - name: luoshan-ui
+          image: luoshan-nexent-ui:v20261016
+          imagePullPolicy: IfNotPresent   # 镜像是 ctr 导入的, 禁止拉取
+          ports:
+            - containerPort: 5180
+          envFrom:
+            - configMapRef:
+                name: luoshan-ui-config
+          readinessProbe:
+            httpGet:
+              path: /api/config
+              port: 5180
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: luoshan-ui
+  namespace: nexent
+spec:
+  type: NodePort
+  selector:
+    app: luoshan-ui
+  ports:
+    - port: 5180
+      targetPort: 5180
+      nodePort: 30180   # 访问入口: http://10.20.6.120:30180  (被占用就换 30000-32767 内其他端口)
